@@ -8,6 +8,7 @@
                  [clj-http-lite "0.3.0"]
                  [ring/ring-defaults "0.1.5"]
                  [clj-json "0.5.3"]
+                 [io.jsonwebtoken/jjwt "0.6.0"]
                  [com.google.api-client/google-api-client "1.19.1"]]
   :plugins [[lein-ring "0.9.7"]]
   :ring {:handler data.handler/app}

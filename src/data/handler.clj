@@ -1,6 +1,10 @@
 (ns data.handler
   (:import [com.google.api.client.googleapis.auth.oauth2 GoogleIdToken GoogleIdTokenVerifier GoogleIdTokenVerifier$Builder]
            [com.google.api.client.googleapis.javanet GoogleNetHttpTransport]
+           [java.util Calendar]
+           [io.jsonwebtoken.impl.crypto MacProvider]
+           [io.jsonwebtoken SignatureAlgorithm]
+           [io.jsonwebtoken Jwts]
            [com.google.api.client.json.jackson2 JacksonFactory])
   (:require [compojure.core :refer :all]
             [compojure.route :as route]
@@ -12,6 +16,34 @@
             [ring.middleware.defaults :refer [wrap-defaults site-defaults]]))
 
 (defonce CLIENT_ID "281796100165-8fjodck6rd1rp95c28ms79jq2ka2i6jg.apps.googleusercontent.com")
+
+(def JWT_KEY (MacProvider/generateKey))
+
+(defn expire-in[exp-sec]
+  (let [c (doto (Calendar/getInstance)
+            (.add Calendar/SECOND exp-sec))]
+    (. c getTime)))
+
+(defn jwt-token[{:keys [iss exp] :as claims}]
+  (letfn [(keyword-str [v] (. (str v) substring 1))
+          (process-claims [jwt c]
+            (reduce-kv (fn[i k v] (. i claim (keyword-str k) v)) jwt c))]
+    (-> (Jwts/builder)
+        (.setIssuer iss)
+        (process-claims claims)
+        (.setExpiration (expire-in exp))
+        (.signWith SignatureAlgorithm/HS512 JWT_KEY)
+        (.compact))))
+
+(defn jwt-verify[s]
+  (try
+    (reduce (fn[i [k v]] (assoc i (keyword k) v)) {}
+            (-> (Jwts/parser)
+                (.setSigningKey JWT_KEY)
+                (.parseClaimsJws s)
+                (.getBody)))
+    (catch Exception ex)))
+      
 
 (def log
   (let [a (agent "")]
@@ -25,20 +57,25 @@
                            (. setAudience [CLIENT_ID])
                            (. setIssuer "accounts.google.com")
                            (. build))]
-    (fn [idtoken]
+    (fn [token-type idtoken]
       {:pre [(seq idtoken)]}
-      (when-let [token (. verifier verify idtoken)]
-        (let [payload (. token getPayload)]
-          (log "Logging in : " (. payload getSubject))
-          {:subject (. payload getSubject)
-           :email (. payload getEmail)})))))
+      (condp = token-type
+        "GoogleSignIn"
+        (when-let [token (. verifier verify idtoken)]
+          (let [payload (. token getPayload)
+                claims {:subject (. payload getSubject)
+                        :email (. payload getEmail)}]
+            (log "Logging in : " (. payload getSubject))
+            (assoc claims :token (jwt-token (assoc claims :iss "abstractalchemist@gmail.com" :exp (* 60 60))))))
+        "Bearer"
+        (jwt-verify idtoken)))))
 
 (defn resolve-binding[val auth-str]
   (condp = val
     :idtoken
     `(if (seq ~auth-str)
-       (let [[~'_ idtoken#] (clojure.string/split ~auth-str #"\s")]
-         (if (seq idtoken#) (validate-token idtoken#) {}))
+       (let [[token-type# idtoken#] (clojure.string/split ~auth-str #"\s")]
+         (if (seq idtoken#) (validate-token token-type# idtoken#) {}))
        {})
     val))
          
@@ -68,6 +105,15 @@
 (def programmingdb "http://localhost:5984/programmingdb")
 
 (defroutes app-routes
+  (POST "/authorize" {{:strs [authorization]} :headers}
+        (try
+          (letlogin [login :idtoken] authorization
+                    (if login
+                      {:status 200
+                       :headers {"content-type" "application/json"}
+                       :body (json/generate-string login)}
+                      {:status 404}))))
+
   (POST "/register" { {:strs [authorization]} :headers}
         "This is the registration endpoint;  it requires a google JWT token and we'll contact you later")
   (context "/frc" { {:strs [authorization] :as h} :headers body :body}
@@ -75,6 +121,7 @@
                (letlogin [login :idtoken] authorization
                          {:status (if (frc? login) 200 401)})))
   (context "/anime" { {:strs [authorization] :as h} :headers body :body}
+           (POST "/authorized" [])
            (PUT "/samples" [] (do
                                 (data.sample/populate-sample-data)
                                 {:status 200}))
@@ -101,13 +148,21 @@
                                     body)}))
                                   
                                   
-           (POST "/:id" [id]
+           (POST "/:id" {:keys [body] {:keys [id]} :params}
                  (letlogin [login :idtoken
-                            admin (admin? login)] authorization))
+                            admin (admin? login)] authorization
+                            (log "posting with id " id " and body " body)
+                            (let [{get-body :body} (let [res (client/get (str animedb "/" id))]
+                                                     (clojure.pprint/pprint res)
+                                                     res)
+                                  res (json/parse-string get-body)
+                                  [{:strs [entry]}] (json/parsed-seq (clojure.java.io/reader body))]
+                              (client/put (str animedb "/" id) {:headers {"content-type" "application/json"}
+                                                                :body (json/generate-string (assoc res :entry entry))}))))
            (GET "/" []
                 (letlogin [login :idtoken
                            admin (admin? login)] authorization
-                           (log "getting anime related info with auth <" login ">")
+                           (log "getting anime related info with auth <" login ">;  has admin privileges? " admin)
                            
                            {:status 200
                             :headers {"Content-Type" "application/json"}
