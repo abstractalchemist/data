@@ -186,10 +186,10 @@
                            admin (admin? login)] authorization
 
                            (let [next-id (m-get-next-id)
-                                 input (slurp (clojure.java.io/reader body))]
+                                 input (json/parse-string (slurp (clojure.java.io/reader body)))]
                              (log "body: " input)
                              (let [{:keys [status body]} (client/put (str animedb "/" next-id) {:headers {"content-type" "application/json"}
-                                                                                                :body input})]
+                                                                                                :body (json/generate-string (assoc input :id next-id))})]
                                (log "result: " status " with body " body)
                                {:status status})))))
   
