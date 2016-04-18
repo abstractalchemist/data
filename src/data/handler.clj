@@ -129,11 +129,22 @@
                (letlogin [login :idtoken] authorization
                          {:status (if (frc? login) 200 401)})))
   (context "/anime" { {:strs [authorization] :as h} :headers body :body}
-           (POST "/authorized" [])
+           (GET "/schedule" []
+                (log "checking watch schedule")
+                {:status 200
+                 :headers {"content-type" "application/json"}
+                 :body (json/generate-string {:img (java.net.URLEncoder/encode "/home/jmhirata/Pictures/2014 - 9.jpg" "UTF-8")
+                                              :schedule ["Gate S2" "Yuki Yuna is a hero"]})})
+           (GET "/authorized" []
+                (log "checking authorization")
+                (letlogin [login :idtoken
+                           admin (admin? login)] authorization
+                           {:status (if admin 200 404)}))
            (PUT "/samples" [] (do
                                 (data.sample/populate-sample-data)
                                 {:status 200}))
            (GET "/images/:id" [id]
+                (log "retriving " (java.net.URLDecoder/decode id))
                 {:status 200
                  :headers { "content-type" "application/octet-stream" }
                  :body (clojure.java.io/input-stream (java.net.URLDecoder/decode id))})
@@ -163,10 +174,12 @@
                             (let [{get-body :body} (let [res (client/get (str animedb "/" id))]
                                                      (clojure.pprint/pprint res)
                                                      res)
-                                  res (json/parse-string get-body)
-                                  [{:strs [entry]}] (json/parsed-seq (clojure.java.io/reader body))]
-                              (client/put (str animedb "/" id) {:headers {"content-type" "application/json"}
-                                                                :body (json/generate-string (assoc res :entry entry))}))))
+                                  {:strs [rev] :as res} (json/parse-string get-body)
+                                  [{:strs [entry links]}] (json/parsed-seq (clojure.java.io/reader body))]
+                              (client/put (str animedb "/" id "?rev=" rev) {:headers {"content-type" "application/json"}
+                                                                :body (json/generate-string (-> res
+                                                                                                (assoc "entry" entry)
+                                                                                                (assoc "links" links)))}))))
            (GET "/" []
                 (letlogin [login :idtoken
                            admin (admin? login)] authorization
@@ -184,14 +197,15 @@
            (PUT "/" {:keys [body]}
                 (letlogin [login :idtoken
                            admin (admin? login)] authorization
-
-                           (let [next-id (m-get-next-id)
-                                 input (json/parse-string (slurp (clojure.java.io/reader body)))]
-                             (log "body: " input)
-                             (let [{:keys [status body]} (client/put (str animedb "/" next-id) {:headers {"content-type" "application/json"}
+                           (if admin
+                             (let [next-id (m-get-next-id)
+                                   input (json/parse-string (slurp (clojure.java.io/reader body)))]
+                               (log "body: " input)
+                               (let [{:keys [status body]} (client/put (str animedb "/" next-id) {:headers {"content-type" "application/json"}
                                                                                                 :body (json/generate-string (assoc input :id next-id))})]
-                               (log "result: " status " with body " body)
-                               {:status status})))))
+                                 (log "result: " status " with body " body)
+                                 {:status status}))
+                             {:status 400}))))
   
   (context "/programming" { {:keys [Authorization]} :headers}
            (GET "/" []))
