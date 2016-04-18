@@ -4,6 +4,7 @@
   :min-lein-version "2.0.0"
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [compojure "1.4.0"]
+                 [org.jsoup/jsoup "1.9.1"]
                  [ring-cors "0.1.7"]
                  [clj-http-lite "0.3.0"]
                  [ring/ring-defaults "0.1.5"]

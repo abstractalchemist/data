@@ -5,6 +5,7 @@
            [io.jsonwebtoken.impl.crypto MacProvider]
            [io.jsonwebtoken SignatureAlgorithm]
            [io.jsonwebtoken Jwts]
+           [org.jsoup Jsoup]
            [com.google.api.client.json.jackson2 JacksonFactory])
   (:require [compojure.core :refer :all]
             [compojure.route :as route]
@@ -172,14 +173,19 @@
                             admin (admin? login)] authorization
                             (log "posting with id " id " and body " body)
                             (let [{get-body :body} (let [res (client/get (str animedb "/" id))]
-                                                     (clojure.pprint/pprint res)
+                                                     ;;(clojure.pprint/pprint res)
                                                      res)
-                                  {:strs [rev] :as res} (json/parse-string get-body)
+                                  {:strs [_rev] :as res} (json/parse-string get-body)
                                   [{:strs [entry links]}] (json/parsed-seq (clojure.java.io/reader body))]
-                              (client/put (str animedb "/" id "?rev=" rev) {:headers {"content-type" "application/json"}
-                                                                :body (json/generate-string (-> res
-                                                                                                (assoc "entry" entry)
-                                                                                                (assoc "links" links)))}))))
+                              (client/put (str animedb "/" id "?rev=" _rev) {:headers {"content-type" "application/json"}
+                                                                             :body (json/generate-string (-> res
+                                                                                                             (assoc "entry" entry)
+                                                                                                             (assoc "links" (if links
+                                                                                                                              (map (fn[l] {:title (let [content (. (Jsoup/connect l) get)]
+                                                                                                                                                    (. content title))
+                                                                                                                                           :link l})
+                                                                                                                                   links)
+                                                                                                                              []))))}))))
            (GET "/" []
                 (letlogin [login :idtoken
                            admin (admin? login)] authorization
@@ -199,11 +205,21 @@
                            admin (admin? login)] authorization
                            (if admin
                              (let [next-id (m-get-next-id)
-                                   input (json/parse-string (slurp (clojure.java.io/reader body)))]
+                                   {:strs [links] :as input} (json/parse-string (slurp (clojure.java.io/reader body)))]
                                (log "body: " input)
-                               (let [{:keys [status body]} (client/put (str animedb "/" next-id) {:headers {"content-type" "application/json"}
-                                                                                                :body (json/generate-string (assoc input :id next-id))})]
-                                 (log "result: " status " with body " body)
+                               (let [{:keys [status body]} (client/put
+                                                            (str animedb "/" next-id)
+                                                            {:headers {"content-type" "application/json"}
+                                                             :body (json/generate-string
+                                                                    (-> input
+                                                                        (assoc :id next-id)
+                                                                        (assoc :links (if links
+                                                                                        (map (fn[l] {:title (let [content (. (Jsoup/connect l) get)]
+                                                                                                              (. content title))
+                                                                                                     :link l})
+                                                                                             links)
+                                                                                        []))))})]
+                                 ;;(log "result: " status " with body " body)
                                  {:status status}))
                              {:status 400}))))
   
