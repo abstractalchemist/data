@@ -105,12 +105,21 @@
 (def animedb "http://localhost:5984/animedb")
 (def programmingdb "http://localhost:5984/programmingdb")
 
+(def scheduledb "http://localhost:5984/scheduledb")
+
 (defn m-get-next-id
   "gets the next available id in the couchdb"
   [] 
   (let [{:keys [body]} (client/get (str animedb "/_all_docs"))
         {:strs [total_rows] :as query} (json/parse-string body)]
     (clojure.pprint/pprint query)
+    total_rows))
+
+(defn m-get-next-schedule-id
+  "gets the next schedule id"
+  []
+  (let [{:keys [body]} (client/get (str scheduledb "/_all_docs"))
+        {:strs [total_rows] :as query} (json/parse-string body)]
     total_rows))
 
 (defroutes app-routes
@@ -130,12 +139,30 @@
                (letlogin [login :idtoken] authorization
                          {:status (if (frc? login) 200 401)})))
   (context "/anime" { {:strs [authorization] :as h} :headers body :body}
+           (context "/schedule/:id" []
+                    (GET "/" [])
+                    (DELETE "/" []))
+           
            (GET "/schedule" []
                 (log "checking watch schedule")
                 {:status 200
                  :headers {"content-type" "application/json"}
                  :body (json/generate-string {:img (java.net.URLEncoder/encode "/home/jmhirata/Pictures/2014 - 9.jpg" "UTF-8")
-                                              :schedule ["Gate S2" "Yuki Yuna is a hero"]})})
+                                              :schedule (let [{:keys [status body]} (client/get (str scheduledb "/_all_docs"))
+                                                              {input "rows"} (json/parse-string body)]
+                                                          (map (fn[{:strs [id]}] (let [{:keys [body]} (client/get (str scheduledb "/" id))
+                                                                                       {:strs [title link]} (json/parse-string body)]
+                                                                                   {:title title :link link})) input))})})
+                                                          
+           (PUT "/schedule" {:keys [body]}
+                (log "adding new item to schedule")
+                (let [next-id (m-get-next-schedule-id)
+                      input (slurp body)]
+                  (client/put (str scheduledb "/" next-id)
+                              {:headers {"content-type" "application/json"}
+                               :body input})))
+                                      
+                
            (GET "/authorized" []
                 (log "checking authorization")
                 (letlogin [login :idtoken
