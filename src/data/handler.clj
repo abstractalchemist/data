@@ -79,16 +79,34 @@
          (if (seq idtoken#) (validate-token token-type# idtoken#) {}))
        {})
     val))
-         
-(defn registered?[{:keys [email]}]
-  (#{"abstractalchemist@gmail.com"} email))
-                 
 
-(defn admin?[{:keys [email]}]
-  (#{"abstractalchemist@gmail.com"} email))
 
-(defn frc?[{:keys [email]}]
-  (#{"abstractalchemist@gmail.com"} email))
+(def animedb "http://localhost:5984/animedb")
+(def programmingdb "http://localhost:5984/programmingdb")
+(def scheduledb "http://localhost:5984/scheduledb")
+(def authorizationdb "http://localhost:5984/authorizationdb")
+
+(defmulti number? class)
+
+(defmethod number? String [s] (try (Integer/parseInt s) (catch Throwable t)))
+(defmethod number? Number [s] true)
+(defmethod number? nil [s] false)
+
+(defn account [{:keys [email]}]
+  (let [{:keys [body]} (client/get (str authorizationdb "/_all_docs"))
+        {:strs [rows]} (json/parse-string body)
+        results (filter (fn[ {:strs [id]}] (number? id)) rows)]
+    (filter (fn[{e "email"}] (= e email)) results)))
+
+(defn registered?[r]
+  (account r))
+
+
+(defn admin?[r]
+  (account r))
+
+(defn frc?[r]
+  (account r))
 
 (defn m-login[[binding val & other] auth-str body]
   (if (seq other)
@@ -101,11 +119,6 @@
 
 (defmacro letlogin[bindings auth-str & body]
   (m-login bindings auth-str body))
-
-(def animedb "http://localhost:5984/animedb")
-(def programmingdb "http://localhost:5984/programmingdb")
-
-(def scheduledb "http://localhost:5984/scheduledb")
 
 (defn m-get-next-id
   "gets the next available id in the couchdb"
@@ -171,24 +184,37 @@
            (PUT "/samples" [] (do
                                 (data.sample/populate-sample-data)
                                 {:status 200}))
-           (GET "/images/:id" [id]
-                (log "retriving " (java.net.URLDecoder/decode id))
-                {:status 200
-                 :headers { "content-type" "application/octet-stream" }
-                 :body (clojure.java.io/input-stream (java.net.URLDecoder/decode id))})
-           (GET "/images" []
-                (log "Grabbing images for gallery")
-                (letlogin [login :idtoken] authorization
-                          (if (and login (registered? login))
-                            {:status 200
-                             :headers {"Content-Type" "application/json"}
-                             :body (json/generate-string (map (comp (fn[d] {:id (java.net.URLEncoder/encode d "UTF-8") :path d}) str) (java.nio.file.Files/newDirectoryStream
-                                                                                                                                       (java.nio.file.Paths/get "/" (into-array String ["home" "jmhirata" "Pictures"]))
+           (context "/images" []
+                    (GET "/authorized" []
+                         (letlogin [login :idtoken] authorization
+                                   (if (and login (registered? login))
+                                     {:status 200
+                                      :body "authorized"}
+                                     {:status 403
+                                      :body "unauthorized"})))
+                    (GET "/:id" {{token "token"} :query-params {id :id} :params}
+                                   
+                         (log "retriving " (java.net.URLDecoder/decode id))
+                         {:status 200
+                          :headers { "content-type" "application/octet-stream" }
+                          :body (clojure.java.io/input-stream (java.net.URLDecoder/decode id))})
+                          
+                    
+                    (GET "/" []
+                         (log "Grabbing images for gallery")
+                         (letlogin [login :idtoken] authorization
+                                   (if (and login (registered? login))
+                                     {:status 200
+                                      :headers {"Content-Type" "application/json"}
+                                      :body (json/generate-string (map (comp (fn[d] {:id (java.net.URLEncoder/encode d "UTF-8") :path d}) str) (java.nio.file.Files/newDirectoryStream
+                                                                                                                                                (java.nio.file.Paths/get "/" (into-array String ["home" "jmhirata" "Pictures"]))
                                                                                                                                        "*.{png,jpg}")))}
-                            {:status 401})))
+                                     {:status 403
+                                      :body "Cannot access image gallery"}))))
            (GET "/:id" [id]
                 (letlogin [login :idtoken
                            admin (admin? login)] authorization
+
                            {:status 200
                             :headers {"content-type" "application/json"}
                             :body (let [{:keys [body]} (client/get (str animedb "/" id))]
@@ -203,9 +229,10 @@
                                                      ;;(clojure.pprint/pprint res)
                                                      res)
                                   {:strs [_rev] :as res} (json/parse-string get-body)
-                                  [{:strs [entry links]}] (json/parsed-seq (clojure.java.io/reader body))]
+                                  [{:strs [entry tags links]}] (json/parsed-seq (clojure.java.io/reader body))]
                               (client/put (str animedb "/" id "?rev=" _rev) {:headers {"content-type" "application/json"}
                                                                              :body (json/generate-string (-> res
+                                                                                                             (assoc "tags" tags)
                                                                                                              (assoc "entry" entry)
                                                                                                              (assoc "links" (if links
                                                                                                                               (map (fn[l] {:title (let [content (. (Jsoup/connect l) get)]
@@ -225,7 +252,7 @@
                                     (letfn [(retrieve [{:strs [id]}] (let [{:keys [body]} (client/get (str animedb "/" id))]
                                                                        (assoc (json/parse-string body) :editable admin)))]
                                       (json/generate-string
-                                       (map retrieve rows))))}))
+                                       (map retrieve (filter (fn[{:strs [id]}] (try (Integer/parseInt id) (catch Throwable t))) rows)))))}))
                                     
            (PUT "/" {:keys [body]}
                 (letlogin [login :idtoken
@@ -239,8 +266,8 @@
                                                             {:headers {"content-type" "application/json"}
                                                              :body (json/generate-string
                                                                     (-> input
-                                                                        (assoc :id next-id)
-                                                                        (assoc :links (if links
+                                                                        (assoc "id" next-id)
+                                                                        (assoc "links" (if links
                                                                                         (map (fn[l] {:title (let [content (. (Jsoup/connect l) get)]
                                                                                                               (. content title))
                                                                                                      :link l})
