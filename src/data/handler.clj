@@ -86,6 +86,24 @@
 (def scheduledb "http://localhost:5984/scheduledb")
 (def authorizationdb "http://localhost:5984/authorizationdb")
 
+(def config
+  (let [c (try
+            (let [c (slurp "/usr/local/etc/app_cfg.json")
+                  json-config (json/parse-string c)]
+              json-config)
+            (catch Throwable t
+              {"img_loc" "/home/jmhirata/Picutres"
+               "img_sched" "/home/jmhirata/Pictures/2014 - 9.jpg"}))]
+    (fn[] c)))
+      
+(defn image-sched[]
+  (let [{:strs [img_sched]} (config)]
+    img_sched))
+
+(defn image-location[]
+  (let [{:strs [img_loc]} (config)]
+    img_loc))
+
 (defmulti number? class)
 
 (defmethod number? String [s] (try (Integer/parseInt s) (catch Throwable t)))
@@ -160,7 +178,7 @@
                 (log "checking watch schedule")
                 {:status 200
                  :headers {"content-type" "application/json"}
-                 :body (json/generate-string {:img (java.net.URLEncoder/encode "/home/jmhirata/Pictures/2014 - 9.jpg" "UTF-8")
+                 :body (json/generate-string {:img (java.net.URLEncoder/encode (image-sched) "UTF-8")
                                               :schedule (let [{:keys [status body]} (client/get (str scheduledb "/_all_docs"))
                                                               {input "rows"} (json/parse-string body)]
                                                           (map (fn[{:strs [id]}] (let [{:keys [body]} (client/get (str scheduledb "/" id))
@@ -204,11 +222,15 @@
                          (log "Grabbing images for gallery")
                          (letlogin [login :idtoken] authorization
                                    (if (and login (registered? login))
-                                     {:status 200
-                                      :headers {"Content-Type" "application/json"}
+                                     (try
+                                       {:status 200
+                                        :headers {"Content-Type" "application/json"}
                                       :body (json/generate-string (map (comp (fn[d] {:id (java.net.URLEncoder/encode d "UTF-8") :path d}) str) (java.nio.file.Files/newDirectoryStream
-                                                                                                                                                (java.nio.file.Paths/get "/" (into-array String ["home" "jmhirata" "Pictures"]))
-                                                                                                                                       "*.{png,jpg}")))}
+                                                                                                                                                (java.nio.file.Paths/get "" (into-array String [(image-location)]))
+                                                                                                                                                "*.{png,jpg}")))}
+                                       (catch Throwable t
+                                         {:status 500
+                                          :body "Error getting images"}))
                                      {:status 403
                                       :body "Cannot access image gallery"}))))
            (GET "/:id" [id]
