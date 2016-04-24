@@ -92,7 +92,7 @@
                   json-config (json/parse-string c)]
               json-config)
             (catch Throwable t
-              {"img_loc" "/home/jmhirata/Picutres"
+              {"img_loc" "/home/jmhirata/Pictures"
                "img_sched" "/home/jmhirata/Pictures/2014 - 9.jpg"}))]
     (fn[] c)))
       
@@ -153,6 +153,15 @@
         {:strs [total_rows] :as query} (json/parse-string body)]
     total_rows))
 
+(def get-images
+  (if (= (System/getProperty "production") "1")
+    (fn[]
+      (map (comp  (fn[d] {:id (. (java.net.URLEncoder/encode (. d replace (image-location) "") "UTF-8") replace "+" "%20")  :path d}) str)
+           (java.nio.file.Files/newDirectoryStream (java.nio.file.Paths/get "" (into-array String [(image-location)])) "*.{png,jpg}")))
+    (fn[]
+      (map (comp  (fn[d] {:id (. (java.net.URLEncoder/encode d "UTF-8") replace "+" "%20")  :path d}) str)
+           (java.nio.file.Files/newDirectoryStream (java.nio.file.Paths/get "" (into-array String [(image-location)])) "*.{png,jpg}")))))
+  
 (defroutes app-routes
   (POST "/authorize" {{:strs [authorization]} :headers}
         (try
@@ -225,9 +234,7 @@
                                      (try
                                        {:status 200
                                         :headers {"Content-Type" "application/json"}
-                                      :body (json/generate-string (map (comp (fn[d] {:id (java.net.URLEncoder/encode d "UTF-8") :path d}) str) (java.nio.file.Files/newDirectoryStream
-                                                                                                                                                (java.nio.file.Paths/get "" (into-array String [(image-location)]))
-                                                                                                                                                "*.{png,jpg}")))}
+                                      :body (json/generate-string (get-images))}
                                        (catch Throwable t
                                          {:status 500
                                           :body "Error getting images"}))
