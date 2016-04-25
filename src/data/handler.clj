@@ -156,7 +156,7 @@
 (def get-images
   (if (= (System/getProperty "production") "1")
     (fn[]
-      (map (comp  (fn[d] {:id (. (java.net.URLEncoder/encode (. d replace (image-location) "") "UTF-8") replace "+" "%20")  :path d}) str)
+      (map (comp  (fn[d] {:id (. (java.net.URLEncoder/encode (. d replace (str (image-location) "/") "") "UTF-8") replace "+" "%20")  :path d}) str)
            (java.nio.file.Files/newDirectoryStream (java.nio.file.Paths/get "" (into-array String [(image-location)])) "*.{png,jpg}")))
     (fn[]
       (map (comp  (fn[d] {:id (. (java.net.URLEncoder/encode d "UTF-8") replace "+" "%20")  :path d}) str)
