@@ -6,4 +6,5 @@
 (defn -main[& args]
   (ring.adapter.jetty/run-jetty
    data.handler/app
-   {:join? true}))
+   {:port 3000
+    :join? true}))
