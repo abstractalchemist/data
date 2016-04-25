@@ -187,7 +187,7 @@
                 (log "checking watch schedule")
                 {:status 200
                  :headers {"content-type" "application/json"}
-                 :body (json/generate-string {:img (java.net.URLEncoder/encode (image-sched) "UTF-8")
+                 :body (json/generate-string {:img (. (java.net.URLEncoder/encode (image-sched) "UTF-8") replace "+" "%20")
                                               :schedule (let [{:keys [status body]} (client/get (str scheduledb "/_all_docs"))
                                                               {input "rows"} (json/parse-string body)]
                                                           (map (fn[{:strs [id]}] (let [{:keys [body]} (client/get (str scheduledb "/" id))
