@@ -220,11 +220,14 @@
                                      {:status 403
                                       :body "unauthorized"})))
                     (GET "/:id" {{token "token"} :query-params {id :id} :params}
-                                   
+                         
                          (log "retriving " (java.net.URLDecoder/decode id))
-                         {:status 200
-                          :headers { "content-type" "application/octet-stream" }
-                          :body (clojure.java.io/input-stream (java.net.URLDecoder/decode id))})
+                         (if-not (System/getProperty "production")
+                           {:status 200
+                            :headers { "content-type" "application/octet-stream" }
+                            :body (clojure.java.io/input-stream (java.net.URLDecoder/decode id))}
+                           {:status 400
+                            :body "Not accessible"}))
                           
                     
                     (GET "/" []
