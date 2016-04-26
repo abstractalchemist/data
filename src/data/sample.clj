@@ -13,11 +13,11 @@
 
 (def sample-data
   (let [c (java.util.Calendar/getInstance)
-        format (javax.text.SimpleDateFormat. "yyyy-MM-dd HH:mm:ss")]
-  [{:id 0 :title "Getting Started" :entry "The first entry in this blog" :img (encode "/home/jmhirata/Pictures/BlogImages/getting-started.jpg") :content "What this section of the blog is all about." :tags  ["start" "information"] :date (. format format (. c getTime))}
-   {:id 1 :title "The Perfect Insider"  :entry "2016's mystery anime" :img (encode "/home/jmhirata/Pictures/BlogImages/the_perfect_insider.jpg") :content "A mystery show with an excellent plot, intersting animeation, and unique set of characters that you consistently question.", :tags ["anime" "review" "perfect insider"] :date (. format format (. c getTime))}
-   {:id 2 :title "Tesagure! Bukatsumono" :entry "Animated Japanese Variety Show" :img (encode "/home/jmhirata/Pictures/BlogImages/Tesagure-Bukatsumono.jpg") :content "The best show this season of stupid nothing-ness and brain emptying entertainment." :tags ["anime" "review" "tesaguri"] :date (. format format (. c getTime))}
-   {:id 3 :title "Gate" :entry "My vote for best show of the season" :img (encode "/home/jmhirata/Pictures/BlogImages/Gate-opens.png") :content "Otaku hero's have never been better than this show." :tags ["anime" "review" "gate"] :date (. format format (. c getTime))}])
+        format (java.text.SimpleDateFormat. "yyyy-MM-dd HH:mm:ss")]
+    [{:id 0 :title "Getting Started" :entry "The first entry in this blog" :img (encode "/home/jmhirata/Pictures/BlogImages/getting-started.jpg") :content "What this section of the blog is all about." :tags  ["start" "information"] :date (. format format (. c getTime))}
+     {:id 1 :title "The Perfect Insider"  :entry "2016's mystery anime" :img (encode "/home/jmhirata/Pictures/BlogImages/the_perfect_insider.jpg") :content "A mystery show with an excellent plot, intersting animeation, and unique set of characters that you consistently question.", :tags ["anime" "review" "perfect insider"] :date (. format format (. c getTime))}
+     {:id 2 :title "Tesagure! Bukatsumono" :entry "Animated Japanese Variety Show" :img (encode "/home/jmhirata/Pictures/BlogImages/Tesagure-Bukatsumono.jpg") :content "The best show this season of stupid nothing-ness and brain emptying entertainment." :tags ["anime" "review" "tesaguri"] :date (. format format (. c getTime))}
+     {:id 3 :title "Gate" :entry "My vote for best show of the season" :img (encode "/home/jmhirata/Pictures/BlogImages/Gate-opens.png") :content "Otaku hero's have never been better than this show." :tags ["anime" "review" "gate"] :date (. format format (. c getTime))}]))
 
 (def populate-sample-data
   "Populate couchdb with sample data"

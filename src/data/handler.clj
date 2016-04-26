@@ -93,7 +93,9 @@
               json-config)
             (catch Throwable t
               {"img_loc" "/home/jmhirata/Pictures"
-               "img_sched" "/home/jmhirata/Pictures/2014 - 9.jpg"}))]
+               "img_sched" "/home/jmhirata/Pictures/2014 - 9.jpg"
+               "anime_view" "/_design/example/_view/byDate"
+               "sched_view" "/_design/example/_view/sched"}))]
     (fn[] c)))
       
 (defn image-sched[]
@@ -103,6 +105,14 @@
 (defn image-location[]
   (let [{:strs [img_loc]} (config)]
     img_loc))
+
+(defn anime-view[]
+  (let [{:strs [anime_view]} (config)]
+    anime_view))
+
+(defn sched-view[]
+  (let [{:strs [sched_view]} (config)]
+    sched_view))
 
 (defmulti number? class)
 
@@ -188,11 +198,10 @@
                 {:status 200
                  :headers {"content-type" "application/json"}
                  :body (json/generate-string {:img (. (java.net.URLEncoder/encode (image-sched) "UTF-8") replace "+" "%20")
-                                              :schedule (let [{:keys [status body]} (client/get (str scheduledb "/_all_docs"))
+                                              :schedule (let [{:keys [status body]} (client/get (str scheduledb (sched-view)))
                                                               {input "rows"} (json/parse-string body)]
-                                                          (map (fn[{:strs [id]}] (let [{:keys [body]} (client/get (str scheduledb "/" id))
-                                                                                       {:strs [title link]} (json/parse-string body)]
-                                                                                   {:title title :link link})) input))})})
+                                                          (clojure.pprint/pprint input)
+                                                          (map (fn[{:strs [value]}] value)  input))})})
                                                           
            (PUT "/schedule" {:keys [body]}
                 (log "adding new item to schedule")
@@ -279,12 +288,12 @@
                            
                            {:status 200
                             :headers {"Content-Type" "application/json"}
-                            :body (let [{:keys [body]} (client/get (str animedb "/_all_docs"))
+                            :body (let [{:keys [body]} (client/get (str animedb (anime-view)))
                                         {:strs [rows]} (json/parse-string body)]
                                     (letfn [(retrieve [{:strs [id]}] (let [{:keys [body]} (client/get (str animedb "/" id))]
                                                                        (assoc (json/parse-string body) :editable admin)))]
                                       (json/generate-string
-                                       (map retrieve (filter (fn[{:strs [id]}] (try (Integer/parseInt id) (catch Throwable t))) rows)))))}))
+                                       (map (fn[{:strs [value]}] value) rows))))}))
                                     
            (PUT "/" {:keys [body]}
                 (letlogin [login :idtoken

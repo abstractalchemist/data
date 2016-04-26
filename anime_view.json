@@ -1,0 +1,10 @@
+{
+    "views" : {
+	"all" : {
+	    "map" : "function(doc) { emit(doc.id, doc); }"
+	},
+	"byDate" : {
+	    "map" : "function(doc) { emit(doc.date, { id: doc.id, title: doc.title, img: doc.img, tags: doc.tags, entry: doc.entry } ); }"
+	}
+    }
+}

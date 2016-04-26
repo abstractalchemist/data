@@ -1,0 +1,7 @@
+{
+    "views" : {
+	"sched" : {
+	    "map" : "function(doc) { emit(doc.watch_by, { title:  doc.title, link: doc.link }) }"
+	}
+    }
+}
