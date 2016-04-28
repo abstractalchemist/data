@@ -94,6 +94,8 @@
             (catch Throwable t
               {"img_loc" "/home/jmhirata/Pictures"
                "img_sched" "/home/jmhirata/Pictures/2014 - 9.jpg"
+               "tags_view" "/_design/tags/_view/byTags"
+               "avail_tags" "/_design/tags/_view/tags?group=true"
                "anime_view" "/_design/example/_view/byDate"
                "sched_view" "/_design/example/_view/sched"}))]
     (fn[] c)))
@@ -113,6 +115,14 @@
 (defn sched-view[]
   (let [{:strs [sched_view]} (config)]
     sched_view))
+
+(defn avail-tags-view[]
+  (let [{:strs [avail_tags]} (config)]
+    avail_tags))
+
+(defn tag-view[]
+  (let [{:strs [tags_view]} (config)]
+    tags_view))
 
 (defmulti number? class)
 
@@ -192,13 +202,19 @@
            (context "/schedule/:id" []
                     (GET "/" [])
                     (DELETE "/" []))
-           
+           (GET "/tags" []
+                (log "getting " (str (avail-tags-view)))
+                {:status 200
+                 :headers {"content-type" "application/json"}
+                 :body (json/generate-string (let [{:keys [body]} (client/get (str animedb (avail-tags-view)))
+                                                   {:strs [rows]} (json/parse-string body)]
+                                               (map (fn[{k "key"}] k) rows)))})
            (GET "/schedule" []
                 (log "checking watch schedule")
                 {:status 200
                  :headers {"content-type" "application/json"}
                  :body (json/generate-string {:img (. (java.net.URLEncoder/encode (image-sched) "UTF-8") replace "+" "%20")
-                                              :schedule (let [{:keys [status body]} (client/get (str scheduledb (sched-view)))
+                                              :schedule (let [{:keys [status body]} (client/get (str scheduledb (sched-view) "?descending=true"))
                                                               {input "rows"} (json/parse-string body)]
                                                           (clojure.pprint/pprint input)
                                                           (map (fn[{:strs [value]}] value)  input))})})
@@ -230,7 +246,7 @@
                                       :body "unauthorized"})))
                     (GET "/:id" {{token "token"} :query-params {id :id} :params}
                          
-                         (log "retriving " (java.net.URLDecoder/decode id))
+;;                         (log "retriving " (java.net.URLDecoder/decode id))
                          (if-not (System/getProperty "production")
                            {:status 200
                             :headers { "content-type" "application/octet-stream" }
@@ -281,14 +297,16 @@
                                                                                                                                            :link l})
                                                                                                                                    links)
                                                                                                                               []))))}))))
-           (GET "/" []
+           (GET "/" {{:strs [tag]} :query-params}
                 (letlogin [login :idtoken
                            admin (admin? login)] authorization
-                           (log "getting anime related info with auth <" login ">;  has admin privileges? " admin)
+;;                           (log "getting anime related info with auth <" login ">;  has admin privileges? " admin)
                            
                            {:status 200
                             :headers {"Content-Type" "application/json"}
-                            :body (let [{:keys [body]} (client/get (str animedb (anime-view)))
+                            :body (let [{:keys [body]} (client/get (str animedb (if tag
+                                                                                  (str (tag-view) "?key=%22" tag "%22")
+                                                                                  (str (anime-view) "?descending=true"))))
                                         {:strs [rows]} (json/parse-string body)]
                                     (letfn [(retrieve [{:strs [id]}] (let [{:keys [body]} (client/get (str animedb "/" id))]
                                                                        (assoc (json/parse-string body) :editable admin)))]

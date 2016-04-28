@@ -1,0 +1,11 @@
+{
+    "views" : {
+	"tags" : {
+	    "map" : "function(doc) { if(doc.tags) doc.tags.forEach(function(i) { emit(i, null); }); }",
+	    "reduce" : "function(key, value) { return true; }"
+	},
+	"byTags" : {
+	    "map" : "function(doc) { if(doc.tags) { doc.tags.forEach(function(i) { emit(i, doc) }) } else emit('no-tag', doc) }"
+	}
+    }
+}
